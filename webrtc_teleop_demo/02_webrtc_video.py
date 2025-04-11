@@ -14,7 +14,7 @@ async def main(sess: VuerSession):
         # you can remove this to fill the entire screen.
         aspect=16/9,
     )
-    sess.set @ Scene(bgChildren=[quad])
+    sess.set @ Scene(bgChildren=[quad], frameloop='always')
 
     while True:
         await sleep(1000.0)

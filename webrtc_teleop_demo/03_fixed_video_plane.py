@@ -16,7 +16,7 @@ async def main(sess: VuerSession):
         fixed=True,
         position=[0, 1, -8]
     )
-    sess.set @ Scene(quad)
+    sess.set @ Scene(quad, frameloop='always')
 
     while True:
         await sleep(1000.0)

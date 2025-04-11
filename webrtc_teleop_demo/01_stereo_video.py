@@ -8,6 +8,7 @@ app = Vuer(host="0.0.0.0", cors_origins="*", static_root=".")
 @app.spawn(start=True)
 async def show_heatmap(sess: VuerSession):
     sess.set @ Scene(
+        frameloop='always',
         bgChildren=[
             StereoVideoPlane(
                 src="http://localhost:8080/static/MaryOculus.mp4",
