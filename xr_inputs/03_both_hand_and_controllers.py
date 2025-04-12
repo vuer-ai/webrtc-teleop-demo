@@ -25,15 +25,15 @@ async def main(session: VuerSession):
         Hands(
             stream=True,
             key="hands-demo",
-            fps=0.1,
+            fps=25,
         ),
         to="bgChildren",
     )
     session.upsert(
         MotionControllers(
             stream="stream",
-            key="motioncontroller-demo",
-            fps=0.1,
+            key="controller-demo",
+            fps=25,
         ),
         to="bgChildren",
     )
