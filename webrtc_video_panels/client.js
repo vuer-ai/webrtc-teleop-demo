@@ -25,7 +25,7 @@ function negotiate() {
     });
   }).then(() => {
     var offer = pc.localDescription;
-    return fetch('https://ge-webrtc.ngrok.app/offer', {
+    return fetch('https://fourier.csail.mit.edu:8080/offer', {
       body: JSON.stringify({
         sdp: offer.sdp,
         type: offer.type,

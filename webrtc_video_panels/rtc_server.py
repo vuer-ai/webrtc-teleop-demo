@@ -17,7 +17,7 @@ relay = None
 webcam = None
 
 
-def create_local_tracks(play_from, decode):
+def create_local_tracks(play_from, decode, device:str=None, format:str=None):
     global relay, webcam
 
     if play_from:
@@ -27,15 +27,19 @@ def create_local_tracks(play_from, decode):
         options = {"framerate": "30", "video_size": "1280x720"}
         if relay is None:
             if platform.system() == "Darwin":
+                format = format or "avfoundation"
                 webcam = MediaPlayer(
-                    "default:none", format="avfoundation", options=options
+                    "default:none", format=format, options=options
                 )
             elif platform.system() == "Windows":
+                format = format or "dshow"
                 webcam = MediaPlayer(
-                    "video=Integrated Camera", format="dshow", options=options
+                    "video=Integrated Camera", format=format, options=options
                 )
             else:
-                webcam = MediaPlayer("/dev/video0", format="v412", options=options)
+                format = format or "v4l2"
+                webcam = MediaPlayer(device, format=format, options=options)
+
             relay = MediaRelay()
         return None, relay.subscribe(webcam.video)
 
@@ -75,7 +79,7 @@ async def offer(request):
 
     # open media source
     audio, video = create_local_tracks(
-        Args.play_from, decode=not Args.play_without_decoding
+        Args.play_from, decode=not Args.play_without_decoding , device=Args.device, format=Args.format
     )
 
     if audio:
@@ -145,6 +149,8 @@ class Args(ParamsProto):
     port = Proto(default=8080, dtype=int, help="Port for HTTP server (default: 8080)")
     cors = Proto(default="https://ge-webrtc.ngrok.app", help="CORS origin to allow")
 
+    device = Proto(help="/dev/video* device, you can find this via ")
+    format = Proto(help="format for the video code, specific to the device hardware.")
     play_from = Proto(help="Read the media from a file and send it.")
     play_without_decoding = Flag(
         "Read the media without decoding it (experimental). "
@@ -187,8 +193,5 @@ if __name__ == "__main__":
     app.router.add_get("/client.js", javascript)
     app.router.add_post("/offer", offer)
     app.router.add_options("/offer", offer_options)
-
-    # for rout in list(app.router.routes()):
-    #     cors.add(rout)
 
     web.run_app(app, host=Args.host, port=Args.port, ssl_context=ssl_context)
