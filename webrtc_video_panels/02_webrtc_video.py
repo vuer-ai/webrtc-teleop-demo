@@ -4,6 +4,12 @@
 3. launch the rtc_server.py
 4. set up a ngrok link to the rtc_server.py
 
+
+--Vuer.cert /etc/letsencrypt/live/fourier.csail.mit.edu/fullchain.pem
+--Vuer.key /etc/letsencrypt/live/fourier.csail.mit.edu/privkey.pem
+--Vuer.port=9000
+--Vuer.host="fourier.csail.mit.edu"
+# --Vuer.cors="https://vuer.ai"
 """
 from asyncio import sleep
 
@@ -11,13 +17,13 @@ from dotvar import auto_load  # noqa
 from vuer import Vuer, VuerSession
 from vuer.schemas import Scene, WebRTCVideoPlane
 
-app = Vuer(host="0.0.0.0", cors_origins="https://{VUER_NGROK_PREFIX}-dev.ngrok.app", static_root=".")
+app = Vuer(host="fourier.csail.mit.edu", static_root=".")
 
 @app.spawn(start=True)
 async def main(sess: VuerSession):
 
     quad = WebRTCVideoPlane(
-        src="https://ge-webrtc.ngrok.app/offer",
+        src="https://fourier.csail.mit.edu:8080/offer",
         key="video-quad",
         # you can remove this to fill the entire screen.
         aspect=16/9,
