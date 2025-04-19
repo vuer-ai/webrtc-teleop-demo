@@ -25,7 +25,10 @@ function negotiate() {
     });
   }).then(() => {
     var offer = pc.localDescription;
-    return fetch('https://fourier.csail.mit.edu:8080/offer', {
+    var queries = new URLSearchParams(window.location.search);
+    var uri = queries.get('uri') || "/offer";
+    console.info("trying to connect to", uri)
+    return fetch(uri, {
       body: JSON.stringify({
         sdp: offer.sdp,
         type: offer.type,

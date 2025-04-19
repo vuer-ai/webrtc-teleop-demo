@@ -147,7 +147,7 @@ class Args(ParamsProto):
 
     host = Proto(default="0.0.0.0", help="Host for HTTP server (default: 0.0.0.0)")
     port = Proto(default=8080, dtype=int, help="Port for HTTP server (default: 8080)")
-    cors = Proto(default="https://ge-webrtc.ngrok.app", help="CORS origin to allow")
+    cors = Proto(env="https://vuer.ai,$VUER_DEV_URI", help="CORS origin to allow")
 
     device = Proto(help="/dev/video* device, you can find this via ")
     format = Proto(help="format for the video code, specific to the device hardware.")
@@ -164,6 +164,13 @@ class Args(ParamsProto):
 
 
 if __name__ == "__main__":
+
+    print("Set up the environment variable VUER_DEV_URI. This needs to be a public IP.")
+    print("to connect from webXR, you need to have STL/SSL enabled. Follow the instruction here:")
+    print("link: https://letsencrypt.org/getting-started/")
+
+    print(f"now connect to: https://{Args.host}:{Args.port}")
+
     if Args.verbose:
         logging.basicConfig(level=logging.DEBUG)
     else:

@@ -16,9 +16,9 @@ Others
 ```shell
 /home/abrashid/anaconda3/bin/conda run -n vuer --no-capture-output \
   python /home/abrashid/mit/webrtc-teleop-demo/webrtc_video_panels/rtc_server.py \
-  --cert-file /etc/letsencrypt/live/fourier.csail.mit.edu/fullchain.pem \
-  --key-file /etc/letsencrypt/live/fourier.csail.mit.edu/privkey.pem \
-  --cors https://fourier.csail.mit.edu \
+  --cert-file /etc/letsencrypt/live/$MY_DOMAIN/fullchain.pem \
+  --key-file /etc/letsencrypt/live/$MY_DOMAIN/privkey.pem \
+  --cors https://$MY_DOMAIN \
   --device=/dev/video2 
 ```
 

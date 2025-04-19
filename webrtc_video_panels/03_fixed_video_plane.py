@@ -1,15 +1,19 @@
+import os
 from asyncio import sleep
 
 from vuer import Vuer, VuerSession
 from vuer.schemas import Scene, WebRTCVideoPlane
 
-app = Vuer(host="fourier.csail.mit.edu", static_root=".")
+VUER_HOST_NAME = os.environ("VUER_HOST_NAME", "localhost")
+WEBRTC_SERVER_URI = os.environ.get("WEBRTC_SERVER_URI", "http://localhost:8080/offer")
+
+app = Vuer(host=VUER_HOST_NAME, static_root=".")
 
 @app.spawn(start=True)
 async def main(sess: VuerSession):
 
     quad = WebRTCVideoPlane(
-        src="https://fourier.csail.mit.edu:8080/offer",
+        src=WEBRTC_SERVER_URI,
         key="video-quad",
         height=1,
         aspect=16/9,

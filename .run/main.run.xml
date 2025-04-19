@@ -8,8 +8,9 @@
       <env name="PYTHONUNBUFFERED" value="1" />
     </envs>
     <option name="SDK_HOME" value="" />
+    <option name="SDK_NAME" value="vuer-mujoco" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/main_setup" />
-    <option name="IS_MODULE_SDK" value="true" />
+    <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
@@ -24,7 +25,7 @@
       </ENTRIES>
     </EXTENSION>
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/main_setup/main.py" />
-    <option name="PARAMETERS" value="--Vuer.cert=/etc/letsencrypt/live/fourier.csail.mit.edu/fullchain.pem --Vuer.key=/etc/letsencrypt/live/fourier.csail.mit.edu/privkey.pem --Vuer.port=8000 --Vuer.host=fourier.csail.mit.edu" />
+    <option name="PARAMETERS" value="" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
