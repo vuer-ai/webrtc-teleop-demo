@@ -17,7 +17,7 @@ from dotvar import auto_load  # noqa
 from vuer import Vuer, VuerSession
 from vuer.schemas import Scene, WebRTCVideoPlane
 
-app = Vuer(host=VUER_HOST_NAME, static_root=".")
+app = Vuer(host=VUER_HOST, static_root=".")
 
 @app.spawn(start=True)
 async def main(sess: VuerSession):

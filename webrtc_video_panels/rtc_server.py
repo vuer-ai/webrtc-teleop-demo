@@ -10,6 +10,7 @@ from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription
 from aiortc.contrib.media import MediaPlayer, MediaRelay
 from aiortc.rtcrtpsender import RTCRtpSender
+from dotvar import auto_load  # noqa
 
 ROOT = os.path.dirname(__file__)
 
@@ -145,9 +146,9 @@ class Args(ParamsProto):
     cert_file = Proto(help="SSL certificate file (for HTTPS)")
     key_file = Proto(help="SSL key file (for HTTPS)")
 
-    host = Proto(default="0.0.0.0", help="Host for HTTP server (default: 0.0.0.0)")
+    host = Proto("0.0.0.0", help="Host for HTTP server (default: 0.0.0.0)")
     port = Proto(default=8080, dtype=int, help="Port for HTTP server (default: 8080)")
-    cors = Proto(env="https://vuer.ai,$VUER_DEV_URI", help="CORS origin to allow")
+    cors = Proto(env="https://vuer.ai,https://$VUER_HOST", help="CORS origin to allow")
 
     device = Proto(help="/dev/video* device, you can find this via ")
     format = Proto(help="format for the video code, specific to the device hardware.")
@@ -171,8 +172,15 @@ if __name__ == "__main__":
 
     print(f"now connect to: https://{Args.host}:{Args.port}")
 
+    Args.verbose = True
+
     if Args.verbose:
-        logging.basicConfig(level=logging.DEBUG)
+        import pprint
+
+        pp = pprint.PrettyPrinter(indent=4)
+        print("Arguments:")
+        pp.pprint(vars(Args))
+
     else:
         logging.basicConfig(level=logging.INFO)
 

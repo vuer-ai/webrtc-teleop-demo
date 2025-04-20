@@ -1,9 +1,18 @@
+import os
 from asyncio import sleep
+from dotvar import auto_load  # noqa
 
+from main_setup.main import VUER_DEV_URI
 from vuer import Vuer, VuerSession
 from vuer.schemas import Hands, MotionControllers
 
-app = Vuer()
+VUER_HOST = os.environ.get("VUER_HOST", "localhost")
+VUER_DEV_URI = os.environ.get("VUER_DEV_URI", f"https://{VUER_HOST}/editor?ws=wss://{VUER_DEV_URI}")
+WEBRTC_SERVER_URI = os.environ.get("WEBRTC_SERVER_URI", "http://localhost:8080/offer")
+
+app = Vuer(host="0.0.0.0", static_root=".")
+
+print("connect via", f"https://{VUER_HOST}/editor?ws=wss://{VUER_HOST}")
 
 @app.add_handler("CONTROLLER_MOVE")
 async def handler(event, session):

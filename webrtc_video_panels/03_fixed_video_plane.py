@@ -4,10 +4,12 @@ from asyncio import sleep
 from vuer import Vuer, VuerSession
 from vuer.schemas import Scene, WebRTCVideoPlane
 
-VUER_HOST_NAME = os.environ("VUER_HOST_NAME", "localhost")
+VUER_HOST = os.environ.get("VUER_HOST", "localhost")
 WEBRTC_SERVER_URI = os.environ.get("WEBRTC_SERVER_URI", "http://localhost:8080/offer")
 
-app = Vuer(host=VUER_HOST_NAME, static_root=".")
+app = Vuer(host=VUER_HOST, static_root=".")
+
+print("connect via", VUER_HOST + "?ws=wss://" + VUER_HOST.split("//")[1] + "")
 
 @app.spawn(start=True)
 async def main(sess: VuerSession):
