@@ -14,8 +14,8 @@ Others
 ## Step 1 Verify the RTC Server
 
 ```shell
-/home/abrashid/anaconda3/bin/conda run -n vuer --no-capture-output \
-  python /home/abrashid/mit/webrtc-teleop-demo/webrtc_video_panels/rtc_server.py \
+/home/user/anaconda3/bin/conda run -n vuer --no-capture-output \
+  python /home/user/mit/webrtc-teleop-demo/webrtc_video_panels/rtc_server.py \
   --cert-file /etc/letsencrypt/live/$MY_DOMAIN/fullchain.pem \
   --key-file /etc/letsencrypt/live/$MY_DOMAIN/privkey.pem \
   --cors https://$MY_DOMAIN \
@@ -36,7 +36,7 @@ v412-ctl --list-devices
 
 gives
 
-`
+```
 Global Shutter Camera: Global S (usb-0000:0c :00.0-2) :
  /dev/video4
  /dev/video5
@@ -48,5 +48,5 @@ Global Shutter Camera: Global S (usb-0000:0c: 00.0-3) :
 Global Shutter Camera: Global S (usb-0000:0c:00.0-5.2) :
  /dev/video0
  /dev/video1 /dev/mediao
-`
+```
 
