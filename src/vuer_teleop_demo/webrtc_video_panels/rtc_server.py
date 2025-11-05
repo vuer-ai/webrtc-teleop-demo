@@ -10,7 +10,7 @@ from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription
 from aiortc.contrib.media import MediaPlayer, MediaRelay
 from aiortc.rtcrtpsender import RTCRtpSender
-from dotvar import auto_load  # noqa
+# from dotvar import auto_load  # noqa
 
 ROOT = os.path.dirname(__file__)
 
@@ -24,25 +24,25 @@ def create_local_tracks(play_from, decode, device:str=None, format:str=None):
     if play_from:
         player = MediaPlayer(play_from, decode=decode)
         return player.audio, player.video
-    else:
-        options = {"framerate": "30", "video_size": "1280x720"}
-        if relay is None:
-            if platform.system() == "Darwin":
-                format = format or "avfoundation"
-                webcam = MediaPlayer(
-                    "default:none", format=format, options=options
-                )
-            elif platform.system() == "Windows":
-                format = format or "dshow"
-                webcam = MediaPlayer(
-                    "video=Integrated Camera", format=format, options=options
-                )
-            else:
-                format = format or "v4l2"
-                webcam = MediaPlayer(device, format=format, options=options)
 
-            relay = MediaRelay()
-        return None, relay.subscribe(webcam.video)
+    options = {"framerate": "30", "video_size": "1280x720"}
+    if relay is None:
+        if platform.system() == "Darwin":
+            format = format or "avfoundation"
+            webcam = MediaPlayer(
+                "default:none", format=format, options=options
+            )
+        elif platform.system() == "Windows":
+            format = format or "dshow"
+            webcam = MediaPlayer(
+                "video=Integrated Camera", format=format, options=options
+            )
+        else:
+            format = format or "v4l2"
+            webcam = MediaPlayer(device, format=format, options=options)
+
+        relay = MediaRelay()
+    return None, relay.subscribe(webcam.video)
 
 
 def force_codec(pc, sender, forced_codec):
@@ -80,7 +80,7 @@ async def offer(request):
 
     # open media source
     audio, video = create_local_tracks(
-        Args.play_from, decode=not Args.play_without_decoding , device=Args.device, format=Args.format
+        Args.play, decode=not Args.play_without_decoding , device=Args.device, format=Args.format
     )
 
     if audio:
@@ -148,11 +148,11 @@ class Args(ParamsProto):
 
     host = Proto("0.0.0.0", help="Host for HTTP server (default: 0.0.0.0)")
     port = Proto(default=8080, dtype=int, help="Port for HTTP server (default: 8080)")
-    cors = Proto(env="https://vuer.ai,https://$VUER_HOST", help="CORS origin to allow")
+    cors = Proto("https://vuer.ai", env="https://vuer.ai,https://$VUER_HOST", help="CORS origin to allow")
 
     device = Proto(help="/dev/video* device, you can find this via ")
     format = Proto(help="format for the video code, specific to the device hardware.")
-    play_from = Proto(help="Read the media from a file and send it.")
+    play = Proto(help="Read the media from a file and send it.")
     play_without_decoding = Flag(
         "Read the media without decoding it (experimental). "
         "For now it only works with an MPEGTS container with only H.264 video."
@@ -171,8 +171,6 @@ if __name__ == "__main__":
     print("link: https://letsencrypt.org/getting-started/")
 
     print(f"now connect to: https://{Args.host}:{Args.port}")
-
-    Args.verbose = True
 
     if Args.verbose:
         import pprint
@@ -210,3 +208,4 @@ if __name__ == "__main__":
     app.router.add_options("/offer", offer_options)
 
     web.run_app(app, host=Args.host, port=Args.port, ssl_context=ssl_context)
+

@@ -13,17 +13,17 @@
 """
 from asyncio import sleep
 
-from dotvar import auto_load  # noqa
+# from dotvar import auto_load  # noqa
 from vuer import Vuer, VuerSession
 from vuer.schemas import Scene, WebRTCVideoPlane
 
-app = Vuer(host=VUER_HOST, static_root=".")
+app = Vuer(host="localhost", static_root=".")
 
 @app.spawn(start=True)
 async def main(sess: VuerSession):
 
     quad = WebRTCVideoPlane(
-        src=WEBRTC_SERVER_URI,
+        src="http://localhost:8080/offer",
         key="video-quad",
         # you can remove this to fill the entire screen.
         aspect=16/9,

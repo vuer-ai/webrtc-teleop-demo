@@ -1,4 +1,91 @@
-# WebRTC Teleop Demonstration
+# `vuer` WebRTC Teleop Example
+
+This repo contains examples to use vuer to teleoperate a bimanual robot, where the stereo video feed is sent back to the
+Quest3 and Apple Vision Pro via webRTC.
+
+Let's focus on the [./vuer_teleop_demo/webrtc_video_panels](./vuer_teleop_demo/webrtc_video_panels) example.
+The code is organized as follows:
+
+```
+> webrtc_video_panels/
+  > index.html          # Example html file with the webRTC javascript client, 
+                        # used to verify that your webRTC server is working.
+                        
+  > rtc_server.py       # WebRTC signaling server that streams video from the camera
+                        # You will want to run this on your robot that has the cameras connected,
+                        # which will stream the video feed to the vuer client.
+                        # 
+                        # This is also why be sure to setup the SSL certificates, as immersive experience
+                        # in webXR requires secure connections (https and wss as opposed to http and ws://).
+                        # for this, the easiest way is to use ngrok or localtunnel to create a secure tunnel.
+                        
+  > video_panel.py      # vuer Video Panel class that displays the video feed in VR
+```
+
+This example uses the `uv` package manager. First, install the dependencies:
+
+```shell
+uv sync --all-extras
+```
+
+Step 1 Verify the WebRTC Video Server
+
+We have a modified WebRTC script that transmits video
+from your macbook's main camera. This example is located
+at [./webrtc]
+
+```shell
+uv run python ./src/vuer_teleop_demo/webrtc_video_panels/rtc_server.py --verbose
+```
+
+outputs
+
+```log
+Set up the environment variable VUER_DEV_URI. This needs to be a public IP.
+to connect from webXR, you need to have STL/SSL enabled. Follow the instruction here:
+link: https://letsencrypt.org/getting-started/
+now connect to: https://0.0.0.0:8080
+Arguments:
+{   'audio_codec': None,
+    'cert_file': None,
+    'cors': 'https://vuer.ai',
+    'description': 'WebRTC webcam demo',
+    'device': None,
+    'format': None,
+    'host': '0.0.0.0',
+    'key_file': None,
+    'play_from': None,
+    'play_without_decoding': None,
+    'port': 8080,
+    'verbose': True,
+    'video_codec': None}
+======== Running on http://0.0.0.0:8080 ========
+(Press CTRL+C to quit)
+```
+
+This shows that the rtc server is running. Now, you can verify that the camera video feed is working, by opening up the
+WebRTC example html file
+at [./vuer_teleop_demo/webrtc_video_panels/index.html](./vuer_teleop_demo/webrtc_video_panels/index.html) It should look
+like this:
+
+<img src="src/vuer_teleop_demo/webrtc_video_panels/figures/screenshot-alan-ge.png" width="70%">
+
+You can also pass in a video file to stream instead of the camera feed. We provide the Occulus Mary demo
+video [MaryOculus.mp4](./vuer_teleop_demo/webrtc_video_panels/MaryOculus.mp4) for testing:
+
+```shell
+uv run python ./src/vuer_teleop_demo/webrtc_video_panels/rtc_server.py --play ./src/vuer_teleop_demo/webrtc_video_panels/MaryOculus.mp4
+```
+
+It should look like this:
+
+<img src="./src/vuer_teleop_demo/webrtc_video_panels/figures/screenshot-web-client.png" width="70%">
+
+
+
+---
+
+older README
 
 - **2D Video**
 - **Stereo Video**
@@ -6,10 +93,10 @@
 - **Stereo WebRTC**
 
 Others
+
 - **HUD** (moves with the user's head)
 - **Stationary Display** (stays at a fixed location)
 - **Movable Display**
-
 
 ## Step 1 Verify the RTC Server
 
@@ -25,7 +112,7 @@ Others
 You should be able to click on the "START" button, and see the camera stream.
 ![figures/rtc_working.png](figures/rtc_working.png)
 
-To see the list of camera devices, do 
+To see the list of camera devices, do
 ![figures/cli_device_list.png](figures/cli_device_list.png)
 
 and you should select to first row for each device.

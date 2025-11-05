@@ -2,7 +2,7 @@ import os
 from asyncio import sleep
 from dotvar import auto_load  # noqa
 
-from main_setup.main import VUER_DEV_URI
+from webrtc_teleop_demo.main_setup.main import VUER_DEV_URI
 from vuer import Vuer, VuerSession
 from vuer.schemas import Hands, MotionControllers
 

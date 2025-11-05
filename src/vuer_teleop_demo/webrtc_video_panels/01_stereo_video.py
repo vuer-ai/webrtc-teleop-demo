@@ -11,7 +11,7 @@ async def show_heatmap(sess: VuerSession):
         frameloop='always',
         bgChildren=[
             StereoVideoPlane(
-                src="http://localhost:8080/static/MaryOculus.mp4",
+                src="http://localhost:8012/static/MaryOculus.mp4",
                 height=1024,
                 width=768,
             ),
