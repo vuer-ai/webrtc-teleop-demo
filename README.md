@@ -82,7 +82,34 @@ It should look like this:
 <img src="./src/vuer_teleop_demo/webrtc_video_panels/figures/screenshot-web-client.png" width="70%">
 
 
+Step 2 Setting Up Secure Connection with SSL Certificates
 
+On your mac or the workstation/robot that is running the rtc_server.py, you need to setup SSL certificates, 
+because for the VR device running the immersive experience, this rtc server is not localhost. So the localhost
+exemptions do not apply. 
+
+We will do a simple self-certified SSL certificate for testing purposes. 
+
+```shell
+cd ./src/vuer_teleop_demo/webrtc_video_panels/
+mkdir .certs && cd .certs
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout local.key -out local.crt \
+  -subj "/CN=192.168.2.12"
+```
+
+You should now have `local.crt` and `local.key` files in the `.certs` folder.
+
+Now configure the webRTC server:
+
+```shell
+uv run python ./src/vuer_teleop_demo/webrtc_video_panels/rtc_server.py \
+  --host 192.168.2.12 \
+  --cert-file ./src/vuer_teleop_demo/webrtc_video_panels/.certs/local.crt \
+  --key-file ./src/vuer_teleop_demo/webrtc_video_panels/.certs/local.key
+```
+
+You’ll get a browser warning unless you import the certificate as trusted.
 ---
 
 older README
