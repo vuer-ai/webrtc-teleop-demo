@@ -4,24 +4,98 @@ import logging
 import os
 import platform
 import ssl
+from queue import Queue
 
 import aiohttp_cors
+import cv2
+import numpy as np
 from aiohttp import web
-from aiortc import RTCPeerConnection, RTCSessionDescription
+from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
 from aiortc.contrib.media import MediaPlayer, MediaRelay
 from aiortc.rtcrtpsender import RTCRtpSender
-# from dotvar import auto_load  # noqa
+from av import VideoFrame
 
 ROOT = os.path.dirname(__file__)
 
 relay = None
 webcam = None
 
+# Global queue for ROS frames
+frame_queue = Queue(maxsize=2)  # Small queue to keep latency low
 
-def create_local_tracks(play_from, decode, device:str=None, format:str=None):
+
+class ROSVideoTrack(VideoStreamTrack):
+    """
+    Custom video track that reads frames from ROS callback
+    """
+    def __init__(self):
+        super().__init__()
+        self.frame_queue = frame_queue
+
+    async def recv(self):
+        """
+        Receive the next video frame
+        """
+        try:
+            # Check if frame is available
+            if not self.frame_queue.empty():
+                img = self.frame_queue.get_nowait()
+
+                # Convert numpy array to VideoFrame
+                # Assuming img is BGR format from ROS (cv_bridge)
+                frame = VideoFrame.from_ndarray(img, format='bgr24')
+                frame.pts, frame.time_base = await self.next_timestamp()
+                return frame
+            else:
+                # If no frame available, wait a bit and try again
+                await asyncio.sleep(0.01)
+                return await self.recv()
+        except Exception as e:
+            print(f"Error receiving frame: {e}")
+            # Return a black frame on error
+            img = np.zeros((720, 1280, 3), dtype=np.uint8)
+            frame = VideoFrame.from_ndarray(img, format='bgr24')
+            frame.pts, frame.time_base = await self.next_timestamp()
+            return frame
+
+
+def ros_image_callback(topic_name, msg, width, height, array: np.ndarray):
+    """
+    Callback function for Astribot image subscriber.
+    This matches the signature expected by astribot.register_image_callback()
+
+    Args:
+        topic_name: Name of the image topic
+        msg: Message metadata
+        width: Image width
+        height: Image height
+        array: numpy array in BGR format (when need_decode=True)
+    """
+    import cv2
+    try:
+        if msg.format.lower() == "jpeg":
+            # Drop old frames if queue is full (keep only latest)
+            if frame_queue.full():
+                try:
+                    frame_queue.get_nowait()
+                except:
+                    pass
+            frame_queue.put_nowait(array)
+            # print(len(frame_queue.queue), array.shape)
+    except Exception as e:
+        print(f"Error queuing frame: {e}")
+
+
+def create_local_tracks(play_from, decode, device: str = None, format: str = None, use_ros: bool = False):
     global relay, webcam
 
+    if use_ros:
+        # Return custom ROS video track
+        print("Using ROS video source")
+        return None, ROSVideoTrack()
+
     if play_from:
+        print(f"Playing from file: {play_from}")
         player = MediaPlayer(play_from, decode=decode)
         return player.audio, player.video
 
@@ -80,7 +154,11 @@ async def offer(request):
 
     # open media source
     audio, video = create_local_tracks(
-        Args.filename, decode=not Args.play_without_decoding , device=Args.device, format=Args.format
+        Args.filename,
+        decode=not Args.play_without_decoding,
+        device=Args.device,
+        format=Args.format,
+        use_ros=Args.use_ros
     )
 
     if audio:
@@ -142,7 +220,7 @@ from params_proto import Flag, ParamsProto, Proto
 
 
 class Args(ParamsProto):
-    description = "WebRTC webcam demo"
+    description = "WebRTC webcam demo with ROS support"
     cert_file = Proto(help="SSL certificate file (for HTTPS)")
     key_file = Proto(help="SSL key file (for HTTPS)")
 
@@ -158,6 +236,8 @@ class Args(ParamsProto):
         "For now it only works with an MPEGTS container with only H.264 video."
     )
 
+    use_ros = Flag("Use ROS image topic as video source instead of webcam or file")
+
     audio_codec = Proto(help="Force a specific audio codec (e.g. audio/opus)")
     video_codec = Proto(help="Force a specific video codec (e.g. video/H264)")
 
@@ -169,6 +249,40 @@ if __name__ == "__main__":
     print("Set up the environment variable VUER_DEV_URI. This needs to be a public IP.")
     print("to connect from webXR, you need to have STL/SSL enabled. Follow the instruction here:")
     print("link: https://letsencrypt.org/getting-started/")
+
+    from core.astribot_api.astribot_client import Astribot
+
+    astribot = Astribot()
+    astribot.activate_camera()
+
+    target_camera = "head_rgbd"
+    # check if head_rgbd camera is already activated
+    cameras_stat = astribot.get_cameras_info()
+    if cameras_stat[target_camera]["activate"] != True:
+        total_seconds = 10
+        print(f"Waiting for camera module activate for {total_seconds} seconds ", end="", flush=True)
+
+        for _ in range(total_seconds):
+            cameras_stat = astribot.get_cameras_info()
+            if cameras_stat[target_camera]["activate"] == True:
+                break
+            print(".", end="", flush=True)
+
+        print("\n Waiting end!")
+
+    # get cameras activate state
+    cameras_stat = astribot.get_cameras_info()
+    print(f"cameras status: {cameras_stat}")
+
+    if cameras_stat[target_camera]["activate"] != True:
+        print(f"Can not activate camera {target_camera}")
+        os._exit(1)
+
+    calib_paras = astribot.get_cameras_calibration_parameter()
+    print(f"camera calibration parameter: {calib_paras}")
+
+    # register as a subscriber to get real-time image of head
+    subscriber = astribot.register_image_callback(target_camera, "color", ros_image_callback, need_decode=True)
 
     print(f"now connect to: https://{Args.host}:{Args.port}")
 
@@ -208,4 +322,3 @@ if __name__ == "__main__":
     app.router.add_options("/offer", offer_options)
 
     web.run_app(app, host=Args.host, port=Args.port, ssl_context=ssl_context)
-

@@ -23,12 +23,13 @@ app = Vuer(host="localhost", static_root=".")
 async def main(sess: VuerSession):
 
     quad = WebRTCVideoPlane(
-        src="http://localhost:8080/offer",
+        src="https://localhost:8080/offer",
         key="video-quad",
         # you can remove this to fill the entire screen.
         aspect=16/9,
     )
     sess.set @ Scene(bgChildren=[quad], frameloop='always')
+    # sess.upsert @ quad
 
     while True:
         await sleep(1000.0)
