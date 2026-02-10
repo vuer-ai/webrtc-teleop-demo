@@ -7,7 +7,6 @@ import ssl
 from queue import Queue
 
 import aiohttp_cors
-import cv2
 import numpy as np
 from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
@@ -23,6 +22,21 @@ webcam = None
 # Global queue for ROS frames
 frame_queue = Queue(maxsize=2)  # Small queue to keep latency low
 
+# Storage for multi-camera stitching
+import threading
+import cv2
+
+camera_frames = {
+    "head_rgbd": None,
+    "left_wrist_rgbd": None,
+    "right_wrist_rgbd": None,
+}
+camera_frames_lock = threading.Lock()
+camera_frame_counts = {"head_rgbd": 0, "left_wrist_rgbd": 0, "right_wrist_rgbd": 0}
+
+# Global reference to astribot client (set in main) - use dict for mutability
+_globals = {"astribot_client": None}
+
 
 class ROSVideoTrack(VideoStreamTrack):
     """
@@ -37,19 +51,17 @@ class ROSVideoTrack(VideoStreamTrack):
         Receive the next video frame
         """
         try:
-            # Check if frame is available
-            if not self.frame_queue.empty():
-                img = self.frame_queue.get_nowait()
-
-                # Convert numpy array to VideoFrame
-                # Assuming img is BGR format from ROS (cv_bridge)
-                frame = VideoFrame.from_ndarray(img, format='bgr24')
-                frame.pts, frame.time_base = await self.next_timestamp()
-                return frame
-            else:
-                # If no frame available, wait a bit and try again
+            # Wait for a frame with a loop (not recursion to avoid stack overflow)
+            while self.frame_queue.empty():
                 await asyncio.sleep(0.01)
-                return await self.recv()
+
+            img = self.frame_queue.get_nowait()
+
+            # Convert numpy array to VideoFrame
+            # Assuming img is BGR format from ROS (cv_bridge)
+            frame = VideoFrame.from_ndarray(img, format='bgr24')
+            frame.pts, frame.time_base = await self.next_timestamp()
+            return frame
         except Exception as e:
             print(f"Error receiving frame: {e}")
             # Return a black frame on error
@@ -61,7 +73,7 @@ class ROSVideoTrack(VideoStreamTrack):
 
 def ros_image_callback(topic_name, msg, width, height, array: np.ndarray):
     """
-    Callback function for Astribot image subscriber.
+    Callback function for Astribot image subscriber (single camera mode).
     This matches the signature expected by astribot.register_image_callback()
 
     Args:
@@ -71,7 +83,6 @@ def ros_image_callback(topic_name, msg, width, height, array: np.ndarray):
         height: Image height
         array: numpy array in BGR format (when need_decode=True)
     """
-    import cv2
     try:
         if msg.format.lower() == "jpeg":
             # Drop old frames if queue is full (keep only latest)
@@ -84,6 +95,141 @@ def ros_image_callback(topic_name, msg, width, height, array: np.ndarray):
             # print(len(frame_queue.queue), array.shape)
     except Exception as e:
         print(f"Error queuing frame: {e}")
+
+
+def unified_stitch_callback(topic_name, msg, width, height, array: np.ndarray):
+    """
+    Single unified callback for all cameras (matches SDK pattern).
+    Uses topic_name to identify which camera the frame is from.
+    """
+    try:
+        astribot_client = _globals.get("astribot_client")
+        if msg.format.lower() == "jpeg" and astribot_client is not None:
+            # Get camera name from topic (SDK method)
+            camera_name = astribot_client.get_camera_name_from_topic_name(topic_name)
+
+            if camera_name in camera_frames:
+                camera_frame_counts[camera_name] += 1
+                if camera_frame_counts[camera_name] % 100 == 1:
+                    print(f"[RTC] {camera_name}: received frame {camera_frame_counts[camera_name]}, shape={array.shape}")
+
+                with camera_frames_lock:
+                    camera_frames[camera_name] = array.copy()
+    except Exception as e:
+        print(f"Error in unified stitch callback: {e}")
+
+
+def make_stitched_callback(camera_name: str, stitch_target_height: int = 480):
+    """
+    Factory function to create a callback for a specific camera that participates in stitching.
+    DEPRECATED: Use unified_stitch_callback instead for better compatibility.
+    """
+    frame_count = [0]
+
+    def callback(topic_name, msg, width, height, array: np.ndarray):
+        try:
+            if msg.format.lower() == "jpeg":
+                frame_count[0] += 1
+                if frame_count[0] % 100 == 1:
+                    print(f"[RTC] {camera_name}: received frame {frame_count[0]}, shape={array.shape}")
+
+                with camera_frames_lock:
+                    camera_frames[camera_name] = array.copy()
+        except Exception as e:
+            print(f"Error in stitched callback for {camera_name}: {e}")
+    return callback
+
+
+_stitch_log_counter = [0]
+_stitch_thread_running = False
+
+
+def start_stitch_thread(target_height: int = 480, fps: int = 30):
+    """Start a background thread that stitches frames at a fixed rate."""
+    global _stitch_thread_running
+    _stitch_thread_running = True
+
+    def stitch_loop():
+        import time
+        interval = 1.0 / fps
+        while _stitch_thread_running:
+            stitch_and_queue_frames(target_height)
+            time.sleep(interval)
+
+    thread = threading.Thread(target=stitch_loop, daemon=True)
+    thread.start()
+    print(f"[RTC] Started stitch thread at {fps} FPS")
+    return thread
+
+
+def stitch_and_queue_frames(target_height: int = 480):
+    """
+    Stitch all available camera frames together.
+    Layout:
+        +------------------+
+        |      HEAD        |
+        |   (full width)   |
+        +--------+---------+
+        | LEFT   | RIGHT   |
+        | (0.5x) | (0.5x)  |
+        +--------+---------+
+    Head is scaled to target_height, wrists are downsampled by 2x and placed below.
+    """
+    head = camera_frames.get("head_rgbd")
+    left = camera_frames.get("left_wrist_rgbd")
+    right = camera_frames.get("right_wrist_rgbd")
+
+    # Need at least head to show anything meaningful
+    if head is None:
+        return
+
+    _stitch_log_counter[0] += 1
+    if _stitch_log_counter[0] % 100 == 1:  # Log every 100 stitches
+        print(f"[RTC] Stitching: head={head.shape if head is not None else None}, "
+              f"left={left.shape if left is not None else None}, "
+              f"right={right.shape if right is not None else None}")
+
+    # Scale head to target height (ensure even width for clean split)
+    h, w = head.shape[:2]
+    scale = target_height / h
+    head_width = int(w * scale)
+    # Make head_width even so wrists split evenly
+    head_width = head_width - (head_width % 2)
+    head_scaled = cv2.resize(head, (head_width, target_height))
+
+    # Wrist row: each wrist is half the head width, half the head height
+    wrist_width = head_width // 2
+    wrist_height = target_height // 2
+
+    # Prepare wrist images (downsampled by 2x relative to head)
+    if left is not None:
+        left_scaled = cv2.resize(left, (wrist_width, wrist_height))
+    else:
+        # Black placeholder if left wrist unavailable
+        left_scaled = np.zeros((wrist_height, wrist_width, 3), dtype=np.uint8)
+
+    if right is not None:
+        right_scaled = cv2.resize(right, (wrist_width, wrist_height))
+    else:
+        # Black placeholder if right wrist unavailable
+        right_scaled = np.zeros((wrist_height, wrist_width, 3), dtype=np.uint8)
+
+    # Stitch wrists horizontally (guaranteed to match head_width since wrist_width * 2 = head_width)
+    wrists_row = np.hstack([left_scaled, right_scaled])
+
+    # Stack head on top, wrists on bottom
+    stitched = np.vstack([head_scaled, wrists_row])
+
+    if _stitch_log_counter[0] % 100 == 1:
+        print(f"[RTC] Stitched output: {stitched.shape}")
+
+    # Queue the stitched frame
+    if frame_queue.full():
+        try:
+            frame_queue.get_nowait()
+        except:
+            pass
+    frame_queue.put_nowait(stitched)
 
 
 def create_local_tracks(play_from, decode, device: str = None, format: str = None, use_ros: bool = False):
@@ -237,6 +383,8 @@ class Args(ParamsProto):
     )
 
     use_ros = Flag("Use ROS image topic as video source instead of webcam or file")
+    stitch_cameras = Flag("Stitch head + left_wrist + right_wrist cameras together")
+    stitch_height = Proto(default=480, dtype=int, help="Target height for stitched output (default: 480)")
 
     audio_codec = Proto(help="Force a specific audio codec (e.g. audio/opus)")
     video_codec = Proto(help="Force a specific video codec (e.g. video/H264)")
@@ -255,34 +403,63 @@ if __name__ == "__main__":
     astribot = Astribot()
     astribot.activate_camera()
 
-    target_camera = "head_rgbd"
-    # check if head_rgbd camera is already activated
+    # Determine which cameras to use
+    if Args.stitch_cameras:
+        target_cameras = ["head_rgbd", "left_wrist_rgbd", "right_wrist_rgbd"]
+        print(f"[RTC] Stitching cameras: {target_cameras}")
+    else:
+        target_cameras = ["head_rgbd"]
+
+    # Wait for cameras to activate
     cameras_stat = astribot.get_cameras_info()
-    if cameras_stat[target_camera]["activate"] != True:
-        total_seconds = 10
-        print(f"Waiting for camera module activate for {total_seconds} seconds ", end="", flush=True)
+    for target_camera in target_cameras:
+        if cameras_stat[target_camera]["activate"] != True:
+            total_seconds = 10
+            print(f"Waiting for {target_camera} to activate for {total_seconds} seconds ", end="", flush=True)
 
-        for _ in range(total_seconds):
-            cameras_stat = astribot.get_cameras_info()
-            if cameras_stat[target_camera]["activate"] == True:
-                break
-            print(".", end="", flush=True)
+            for _ in range(total_seconds):
+                cameras_stat = astribot.get_cameras_info()
+                if cameras_stat[target_camera]["activate"] == True:
+                    break
+                print(".", end="", flush=True)
+                import time
+                time.sleep(1)
 
-        print("\n Waiting end!")
+            print("\n Waiting end!")
 
     # get cameras activate state
     cameras_stat = astribot.get_cameras_info()
     print(f"cameras status: {cameras_stat}")
 
-    if cameras_stat[target_camera]["activate"] != True:
-        print(f"Can not activate camera {target_camera}")
-        os._exit(1)
+    for target_camera in target_cameras:
+        activated = cameras_stat.get(target_camera, {}).get("activate", False)
+        if activated:
+            print(f"[RTC] Camera {target_camera}: ACTIVATED ✓")
+        else:
+            print(f"[RTC] Camera {target_camera}: NOT ACTIVATED ✗")
 
     calib_paras = astribot.get_cameras_calibration_parameter()
     print(f"camera calibration parameter: {calib_paras}")
 
-    # register as a subscriber to get real-time image of head
-    subscriber = astribot.register_image_callback(target_camera, "color", ros_image_callback, need_decode=True)
+    # Register camera callbacks
+    subscribers = []
+    if Args.stitch_cameras:
+        # Set global astribot client for unified callback
+        _globals["astribot_client"] = astribot
+
+        # Register all cameras with the SAME unified callback (SDK pattern)
+        for cam in target_cameras:
+            sub = astribot.register_image_callback(cam, "color", unified_stitch_callback, need_decode=True)
+            if sub:
+                subscribers.append(sub)
+                print(f"[RTC] Registered unified callback for {cam}")
+
+        # Start background stitch thread (like SDK example)
+        start_stitch_thread(target_height=Args.stitch_height, fps=30)
+    else:
+        # Single camera mode (head only)
+        subscriber = astribot.register_image_callback("head_rgbd", "color", ros_image_callback, need_decode=True)
+        subscribers.append(subscriber)
 
     print(f"now connect to: https://{Args.host}:{Args.port}")
 

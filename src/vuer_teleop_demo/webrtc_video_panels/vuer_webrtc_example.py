@@ -50,10 +50,12 @@ async def show_webrtc_stream(sess: VuerSession):
                 # 'b64png' does not work for some reason, but works for the nerf demo.
                 # 'jpeg' encoding is significantly faster than 'png'.
                 format="jpeg",
+                aspect=16/9,
+                height=1,
                 quality=20,
                 key="background",
                 fixed=True,
-                distanceToCamera=1,
+                # distanceToCamera=3,
 
                 # can test with matrix
                 # matrix=[
@@ -62,7 +64,7 @@ async def show_webrtc_stream(sess: VuerSession):
                 #     0, 0, 1, 0,
                 #     0, 0, -3, 1,
                 # ],
-                position=[5, 3, 0],
+                position=[2, 1, 0],
                 ### Can also rotate the plane in-place.
                 rotation=[0, -np.pi/2, 0],
             )
